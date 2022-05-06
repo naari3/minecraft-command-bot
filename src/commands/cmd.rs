@@ -12,7 +12,7 @@ use crate::domains::rcon_client::RCONClient;
 #[allowed_roles("cmd")]
 async fn cmd(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let cmd = args.rest();
-    info!("Receive cmd: `{cmd}`");
+    info!("Receive cmd: {} `{cmd}`", msg.author.tag());
     let mut client = match RCONClient::new().await {
         Ok(c) => c,
         Err(err) => {
@@ -35,7 +35,7 @@ async fn cmd(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             .say(&ctx.http, format!("```{response}```"))
             .await?;
     }
-    info!("Success cmd: `{cmd}`");
+    info!("Success cmd: {} `{cmd}`", msg.author.tag());
 
     Ok(())
 }
