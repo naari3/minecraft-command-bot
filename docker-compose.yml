@@ -36,7 +36,7 @@ services:
     build:
       context: .
     environment:
-      RCON_HOST: localhost
+      RCON_HOST: mc
       RCON_PASSWORD: minecraft
       DISCORD_BOT_TOKEN: your_token
 

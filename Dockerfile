@@ -26,7 +26,7 @@ RUN cargo build --release --target $(cat /rust_target.txt)
 RUN rm src/*.rs
 
 COPY ./src ./src
-RUN cargo build --release --target $(cat /rust_target.txt)
+RUN touch ./src/main.rs
 RUN cargo install --locked --path . --target $(cat /rust_target.txt)
 
 FROM alpine
