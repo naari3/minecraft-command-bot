@@ -10,12 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       IMAGE_NAME: minecraft-command-bot
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - linux/amd64
-          - linux/arm64
+      TARGET_PLATFORMS: linux/amd64,linux/arm64
     steps:
       - uses: actions/checkout@v2
       - name: Set up Docker Buildx
@@ -33,7 +28,7 @@ jobs:
         with:
           context: .
           push: true
-          platforms: ${{ matrix.target }}
+          platforms: ${{ env.TARGET_PLATFORMS }}
           tags: |
             ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
             ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ github.event.release.tag_name }}
