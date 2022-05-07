@@ -44,8 +44,10 @@ async fn whitelist_add(ctx: Context, add_reaction: Reaction) -> CommandResult {
                     .await?;
                 if have_cmd {
                     let mut client = RCONClient::new().await?;
-                    let result = client.cmd(&format!("whitelist add {}", "naarisan")).await?;
                     let message = add_reaction.message(&ctx.http).await?;
+                    let result = client
+                        .cmd(&format!("whitelist add {}", message.content))
+                        .await?;
                     message.reply_ping(&ctx.http, format!("`{result}`")).await?;
                 }
             }
