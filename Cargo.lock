@@ -553,7 +553,7 @@ dependencies = [
 
 [[package]]
 name = "minecraft-command-bot"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "dotenv",
  "env_logger",
