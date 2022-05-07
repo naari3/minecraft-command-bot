@@ -6,7 +6,7 @@ use serenity::{
     framework::{
         standard::{
             macros::{group, hook},
-            DispatchError,
+            CommandResult, DispatchError,
         },
         StandardFramework,
     },
@@ -20,13 +20,13 @@ mod domains;
 mod error;
 mod listeners;
 
-use commands::{cmd::*, help::*};
+use commands::{cmd::*, help::*, mcuuid::*};
 
 #[group]
 #[description("コマンドコマンド")]
 #[summary("main")]
 #[only_in(guilds)]
-#[commands(cmd)]
+#[commands(cmd, mcuuid)]
 struct General;
 
 #[hook]
@@ -66,6 +66,30 @@ async fn dispatch_error(ctx: &Context, msg: &Message, error: DispatchError) {
     };
 }
 
+#[hook]
+pub async fn after_commands(
+    ctx: &Context,
+    message: &Message,
+    command_name: &str,
+    command_result: CommandResult,
+) {
+    if let Err(err) = command_result {
+        let _ = message.reply(&ctx.http, &err).await;
+        if format!("{}", err).contains("不明なエラー") {
+            println!(
+                "[{}] {}の処理中にエラーが発生しました。\nerror: {}\nmessage: {}\nauthor: {} (id: {})\nguild_id: {:?}",
+                message.timestamp,
+                command_name,
+                err,
+                message.content,
+                message.author.name,
+                message.author.id.as_u64(),
+                message.guild_id
+            );
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     dotenv().ok();
@@ -80,8 +104,8 @@ async fn main() {
 
     let framework = StandardFramework::new()
         .configure(|config| config.prefix("\\"))
-        // .after(after_commands)
         // .before(before_commands)
+        .after(after_commands)
         .on_dispatch_error(dispatch_error)
         .group(&GENERAL_GROUP)
         .help(&MY_HELP);
