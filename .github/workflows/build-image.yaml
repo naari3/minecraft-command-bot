@@ -9,12 +9,20 @@ jobs:
   info:
     runs-on: ubuntu-latest
     outputs:
-      base_image: ${{ steps.base_image.base_image }}
+      base_image: ${{ steps.base_image.outputs.value }}
+      image_name: ${{ steps.image_name.outputs.value }}
     env:
       IMAGE_NAME: minecraft-command-bot
     steps:
       - id: base_image
-        run: echo "::set-output name=base_image::$(echo 'base_image=ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ github.event.release.tag_name }}')"
+        run: echo "::set-output name=value::ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ github.event.release.tag_name }}"
+      - name: view output
+        run: echo "steps.base_image.outputs.value = ${{ steps.base_image.outputs.value }}"
+
+      - id: image_name
+        run: echo "::set-output name=value::${{ env.IMAGE_NAME }}"
+      - name: view output
+        run: echo "steps.image_name.outputs.value = ${{ steps.image_name.outputs.value }}"
   run:
     runs-on: ubuntu-latest
     needs: info
@@ -24,8 +32,6 @@ jobs:
         target:
           - linux/amd64
           - linux/arm64
-    env:
-      IMAGE_NAME: minecraft-command-bot
     steps:
       - uses: actions/checkout@v2
       - name: Set up Docker Buildx
@@ -38,7 +44,7 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.CR_PAT }}
 
-      - run: echo "target_arch=$(echo ${{ matrix.target }} | awk -F/ '{print $NF}'))" >> $GITHUB_ENV
+      - run: echo "target_arch=$(echo ${{ matrix.target }} | awk -F/ '{print $NF}')" >> $GITHUB_ENV
 
       - name: Build and push
         uses: docker/build-push-action@v2
@@ -73,7 +79,14 @@ jobs:
         run: |
           npx zx <<'EOF'
           const target_image_name = "${{ needs.info.outputs.base_image }}"
-          const images = (await $`docker images --format '{{.Repository}}:{{.Tag}}'`).stdout.split("\n").slice(0, -1)
+          console.log(target_image_name)
+          const resp = await fetch("https://ghcr.io/v2/${{ github.repository_owner }}/${{ needs.info.outputs.image_name }}/tags/list", { headers: { Authorization: `Bearer ${Buffer.from("${{ secrets.PERSONAL_ACCESS_TOKEN }}").toString('base64')}` } })
+          const body = await resp.json()
+          console.log(body)
+          const images = body.tags.map(t => `ghcr.io/${{ github.repository_owner }}/${{ needs.info.outputs.image_name }}:${t}` )
+          console.log(images)
           const target_images = images.filter(i => i.includes(target_image_name))
+          console.log(target_images)
           await $`docker manifest create ${target_image_name} ${target_images}`
+          await $`docker manifest push ${target_image_name}`
           EOF
