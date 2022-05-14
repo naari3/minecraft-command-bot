@@ -11,6 +11,39 @@ A discord bot about for Minecraft server.
 - `logs/latest.log`
   - for log transfer
 
+# how to use
+
+```yaml
+# example: docker-comopse.yaml
+version: "3.8"
+
+services:
+  mc:
+    ports:
+      - "25565:25565"
+      - "25575:25575"
+    volumes:
+      - "mc:/data"
+    environment:
+      EULA: "TRUE"
+    image: itzg/minecraft-server
+    restart: always
+  bot:
+    image: ghcr.io/naari3/minecraft-command-bot:latest
+    environment:
+      RCON_HOST: mc
+      RCON_PASSWORD: minecraft
+      DISCORD_BOT_TOKEN: your_token
+      DISCORD_BOT_PREFIX: \
+      MINECRAFT_LOG_PATH: /data/logs/latest.log
+      MINECRAFT_LOG_CHANNEL_ID: your_channel_id
+    volumes:
+      - "mc:/data"
+
+volumes:
+  mc:
+```
+
 # features
 
 ## commands
