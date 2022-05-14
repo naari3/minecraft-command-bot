@@ -2,6 +2,44 @@
 
 A discord bot about for Minecraft server.
 
-## TODO
+# requirement
 
-- [ ] もしゲーム内チャットが Discord のテキストチャンネルに垂れ流せるのであればとてもうれしいよね
+- Minecraft Server
+  - RCON is required
+- Discord Server
+  - A role named `cmd` is required
+- `logs/latest.log`
+  - for log transfer
+
+# features
+
+## commands
+
+### cmd
+
+- Execute command.
+- Example:
+  - `\cmd kill @e`
+- Can only be executed by those with the `cmd` role.
+
+### mcuuid
+
+- Convert Minecraft name and UUID to each other.
+- Example:
+  - `\mcuuid naarisan` will returns => `05140bb4-f432-43fe-a5e4-069da2d4fc46`
+  - `\mcuuid 05140bb4-f432-43fe-a5e4-069da2d4fc46` will returns => `naarisan`
+  - `\mcuuid 05140bb4f43243fea5e4069da2d4fc46` will also returns => `naarisan`
+
+### say
+
+- Send chat to Minecraft server.
+- Example:
+  - `\say howdy!`
+
+## log transfer
+
+- Transfer chats in the Minecraft server to a Discord channel.
+
+## add to whitelist via heart reaction
+
+- When a user adds a heart reaction to a user listed message, the user is added to the server's whitelist.
