@@ -1,7 +1,11 @@
 use crate::minecraft_line::MinecraftLine;
+use once_cell::sync::Lazy;
 use regex::Regex;
 
 use super::SendRule;
+
+static ADVANCEMENT_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^(.*)\s\shas\smade\sthe\sadvancement\s\[(.*)\]$").unwrap());
 
 #[derive(Clone)]
 pub struct AdvancementRule;
@@ -12,10 +16,7 @@ impl SendRule for AdvancementRule {
             return None;
         }
 
-        let advancement_re =
-            Regex::new(r"^(.*)\s\shas\smade\sthe\sadvancement\s\[(.*)\]$").unwrap();
-
-        advancement_re.captures(&line.message).map(|cap| {
+        ADVANCEMENT_RE.captures(&line.message).map(|cap| {
             let name = cap
                 .get(1)
                 .map(|name| name.as_str().to_string())

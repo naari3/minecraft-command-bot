@@ -646,7 +646,7 @@ dependencies = [
 
 [[package]]
 name = "minecraft-command-bot"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "dotenv",
  "env_logger",
@@ -654,6 +654,7 @@ dependencies = [
  "err-derive",
  "linemux",
  "log",
+ "once_cell",
  "rcon",
  "regex",
  "reqwest",

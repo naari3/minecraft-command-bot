@@ -20,8 +20,8 @@ use commands::{cmd::*, help::*, mcuuid::*, say::*};
 
 use crate::{
     domains::send_rule::{
-        advancement_rule::AdvancementRule, chat_rule::ChatRule, login_rule::LoginRule,
-        rcon_rule::RconRule, server_rule::ServerRule,
+        advancement_rule::AdvancementRule, chat_rule::ChatRule, death_rule::DeathRule,
+        login_rule::LoginRule, rcon_rule::RconRule, server_rule::ServerRule,
     },
     globals::SendRules,
     listeners::{after_commands, dispatch_error, Handler},
@@ -68,6 +68,7 @@ async fn main() {
             Box::new(LoginRule),
             Box::new(AdvancementRule),
             Box::new(ServerRule),
+            Box::new(DeathRule),
         ]));
     }
     if let Err(reason) = client.start().await {

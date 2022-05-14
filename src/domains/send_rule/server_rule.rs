@@ -1,7 +1,17 @@
 use crate::minecraft_line::MinecraftLine;
+use once_cell::sync::Lazy;
 use regex::Regex;
 
 use super::SendRule;
+
+static SERVER_REGEXS: Lazy<Vec<Regex>> = Lazy::new(|| {
+    let res = vec![
+        r"^Starting\sminecraft\sserver\sversion\s.*$",
+        r"^Stopping\sserver$",
+        r#"^Done\s\(.*s\)!\sFor\shelp,\stype\s"help"\sor\s"\?"$"#,
+    ];
+    res.into_iter().map(|re| Regex::new(re).unwrap()).collect()
+});
 
 #[derive(Clone)]
 pub struct ServerRule;
@@ -12,13 +22,10 @@ impl SendRule for ServerRule {
             return None;
         }
 
-        let stopped_re = Regex::new(r"^Stopping\sserver$").unwrap();
-
-        if stopped_re.is_match(&line.message)
-            || stopped_re.is_match(&line.message)
-            || stopped_re.is_match(&line.message)
-        {
-            return Some(format!("**{}**", line.message).to_string());
+        for re in SERVER_REGEXS.iter() {
+            if re.is_match(&line.message) {
+                return Some(format!("**{}**", line.message.clone()));
+            }
         }
         None
     }

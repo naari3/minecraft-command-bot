@@ -1,7 +1,10 @@
 use crate::minecraft_line::MinecraftLine;
+use once_cell::sync::Lazy;
 use regex::Regex;
 
 use super::SendRule;
+
+static CHAT_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\<(.*?)>\s(.*)$").unwrap());
 
 #[derive(Clone)]
 pub struct ChatRule;
@@ -12,8 +15,7 @@ impl SendRule for ChatRule {
             return None;
         }
 
-        let chat_re = Regex::new(r"^<(.*?)>\s(.*)$").unwrap();
-        chat_re.captures(&line.message).map(|cap| {
+        CHAT_RE.captures(&line.message).map(|cap| {
             let name = cap
                 .get(1)
                 .map(|name| name.as_str().to_string())

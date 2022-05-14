@@ -1,4 +1,5 @@
 use crate::minecraft_line::MinecraftLine;
+use once_cell::sync::Lazy;
 use regex::Regex;
 
 use super::SendRule;
@@ -6,14 +7,15 @@ use super::SendRule;
 #[derive(Clone)]
 pub struct RconRule;
 
+static RCON_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\[(.*?)]\s(.*)$").unwrap());
+
 impl SendRule for RconRule {
     fn send(&self, line: &MinecraftLine) -> Option<String> {
         if !line.caused_at.contains("Server thread") || !line.level.eq("INFO") {
             return None;
         }
 
-        let rcon_re = Regex::new(r"^\[(.*?)]\s(.*)$").unwrap();
-        rcon_re.captures(&line.message).map(|cap| {
+        RCON_RE.captures(&line.message).map(|cap| {
             let name = cap
                 .get(1)
                 .map(|name| name.as_str().to_string())
