@@ -175,7 +175,7 @@ async fn set_status(ctx: Arc<Context>) -> CommandResult {
     let ping = PingClient::new().await;
     let status = ping.ping().await?;
     ctx.set_activity(Activity::playing(format!(
-        "{} people(s) online",
+        "{} player(s) online",
         status.players.online
     )))
     .await;
