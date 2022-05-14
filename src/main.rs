@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use config::Config;
 use dotenv::dotenv;
 use log::info;
@@ -10,17 +12,23 @@ mod commands;
 mod config;
 mod domains;
 mod error;
+mod globals;
 mod listeners;
+mod minecraft_line;
 
-use commands::{cmd::*, help::*, mcuuid::*};
+use commands::{cmd::*, help::*, mcuuid::*, say::*};
 
-use crate::listeners::{after_commands, dispatch_error};
+use crate::{
+    domains::send_rule::{chat_rule::ChatRule, login_rule::LoginRule, rcon_rule::RconRule},
+    globals::SendRules,
+    listeners::{after_commands, dispatch_error, Handler},
+};
 
 #[group]
 #[description("コマンドコマンド")]
 #[summary("main")]
 #[only_in(guilds)]
-#[commands(cmd, mcuuid)]
+#[commands(cmd, mcuuid, say)]
 struct General;
 
 #[tokio::main]
@@ -36,7 +44,7 @@ async fn main() {
     info!("Start command bot");
 
     let framework = StandardFramework::new()
-        .configure(|config| config.prefix("\\"))
+        .configure(|cfg| cfg.prefix(&config.discord_bot_prefix))
         // .before(before_commands)
         .after(after_commands)
         .on_dispatch_error(dispatch_error)
@@ -45,10 +53,18 @@ async fn main() {
 
     let mut client = Client::builder(&config.discord_bot_token)
         .framework(framework)
-        .event_handler(listeners::Handler)
+        .event_handler(Handler::new())
         .await
         .expect("クライアントの作成中にエラーが発生しました");
 
+    {
+        let mut data = client.data.write().await;
+        data.insert::<SendRules>(Arc::new(vec![
+            Box::new(ChatRule),
+            Box::new(RconRule),
+            Box::new(LoginRule),
+        ]));
+    }
     if let Err(reason) = client.start().await {
         eprintln!("クライアントの起動に失敗しました: {:?}", reason);
     }

@@ -39,6 +39,11 @@ services:
       RCON_HOST: mc
       RCON_PASSWORD: minecraft
       DISCORD_BOT_TOKEN: your_token
+      DISCORD_BOT_PREFIX: \
+      MINECRAFT_LOG_PATH: /data/logs/latest.log
+      MINECRAFT_LOG_CHANNEL_ID: "974809758655721542"
+    volumes:
+      - "mcbig:/data"
 
 volumes:
   mcbig:

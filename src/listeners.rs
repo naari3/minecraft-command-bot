@@ -1,21 +1,43 @@
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+
+use linemux::MuxedLines;
+use log::{debug, error, info};
+use regex::Regex;
 use serenity::{
     async_trait,
     client::{Context, EventHandler},
     framework::standard::{macros::hook, CommandResult, DispatchError},
     model::{
         channel::{Message, Reaction},
+        id::{ChannelId, GuildId},
         prelude::Ready,
     },
 };
 
-use crate::domains::rcon_client::RCONClient;
+use crate::{
+    config::Config, domains::rcon_client::RCONClient, globals::SendRules,
+    minecraft_line::MinecraftLine,
+};
 
-pub struct Handler;
+pub struct Handler {
+    is_loop_running: AtomicBool,
+}
+
+impl Handler {
+    pub fn new() -> Self {
+        Self {
+            is_loop_running: AtomicBool::new(false),
+        }
+    }
+}
 
 #[async_trait]
 impl EventHandler for Handler {
     async fn ready(&self, _: Context, ready: Ready) {
-        println!("{} is connected!", ready.user.name);
+        info!("{} is connected!", ready.user.name);
     }
 
     async fn reaction_add(&self, ctx: Context, add_reaction: Reaction) {
@@ -24,6 +46,71 @@ impl EventHandler for Handler {
             Err(err) => {
                 log::error!("{err}");
             }
+        }
+    }
+
+    async fn cache_ready(&self, ctx: Context, _guilds: Vec<GuildId>) {
+        let ctx = Arc::new(ctx);
+        if !self.is_loop_running.load(Ordering::Relaxed) {
+            let ctx1 = Arc::clone(&ctx);
+
+            let log_re = Regex::new(r"^\[(.*)]\s\[([^/]*)/(.*)][^:]*:\s(.*)$").unwrap();
+            let config = Config::get();
+            let path = if let Some(path) = &config.minecraft_log_path {
+                path.clone()
+            } else {
+                return;
+            };
+            let channel_id: u64 = if let Some(channel_id) = &config.minecraft_log_channel_id {
+                channel_id.parse::<_>().unwrap()
+            } else {
+                return;
+            };
+            debug!("channel id: {channel_id}");
+            let mut lines = MuxedLines::new().unwrap();
+            lines.add_file(path).await.unwrap();
+            tokio::spawn(async move {
+                while let Ok(Some(line)) = lines.next_line().await {
+                    debug!("{:?}", line);
+                    if let Some(line) = log_re.captures(&line.line()).map(|cap| {
+                        let time = cap
+                            .get(1)
+                            .map(|time| time.as_str().to_string())
+                            .unwrap_or("".to_string());
+                        let caused_at = cap
+                            .get(2)
+                            .map(|ca| ca.as_str().to_string())
+                            .unwrap_or("".to_string());
+                        let level = cap
+                            .get(3)
+                            .map(|l| l.as_str().to_string())
+                            .unwrap_or("".to_string());
+                        let message = cap
+                            .get(4)
+                            .map(|m| m.as_str().to_string())
+                            .unwrap_or("".to_string());
+
+                        MinecraftLine::new(time, caused_at, level, message)
+                    }) {
+                        let data_read = ctx1.data.read().await;
+                        let send_rules_lock = data_read.get::<SendRules>().unwrap().clone();
+                        for rule in send_rules_lock.iter() {
+                            if rule.allow_send(&line) {
+                                if let Some(msg) = rule.send(&line) {
+                                    match ChannelId(channel_id).say(&ctx1, msg).await {
+                                        Ok(_) => {}
+                                        Err(err) => {
+                                            error!("{err}");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    };
+                }
+            });
+
+            self.is_loop_running.swap(true, Ordering::Relaxed);
         }
     }
 }
@@ -61,7 +148,7 @@ async fn whitelist_add(ctx: Context, add_reaction: Reaction) -> CommandResult {
 
 #[hook]
 pub async fn dispatch_error(ctx: &Context, msg: &Message, error: DispatchError) {
-    println!("{:?}", error);
+    log::error!("{:?}", error);
     match error {
         // DispatchError::CheckFailed(_, _) => todo!(),
         DispatchError::Ratelimited(info) => {

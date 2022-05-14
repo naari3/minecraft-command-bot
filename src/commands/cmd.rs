@@ -8,7 +8,7 @@ use crate::domains::rcon_client::RCONClient;
 
 #[command]
 #[description = "コマンドを送信する"]
-#[usage = "[cmd...]"]
+#[usage = "[cmd ...]"]
 #[allowed_roles("cmd")]
 async fn cmd(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let cmd = args.rest();
