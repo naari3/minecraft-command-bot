@@ -1,6 +1,9 @@
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
+use std::{
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Duration,
 };
 
 use linemux::MuxedLines;
@@ -13,12 +16,14 @@ use serenity::{
     model::{
         channel::{Message, Reaction},
         id::{ChannelId, GuildId},
-        prelude::Ready,
+        prelude::{Activity, Ready},
     },
 };
 
 use crate::{
-    config::Config, domains::rcon_client::RCONClient, globals::SendRules,
+    config::Config,
+    domains::{ping_client::PingClient, rcon_client::RCONClient},
+    globals::SendRules,
     minecraft_line::MinecraftLine,
 };
 
@@ -52,59 +57,38 @@ impl EventHandler for Handler {
     async fn cache_ready(&self, ctx: Context, _guilds: Vec<GuildId>) {
         let ctx = Arc::new(ctx);
         if !self.is_loop_running.load(Ordering::Relaxed) {
-            let ctx1 = Arc::clone(&ctx);
-
-            let log_re = Regex::new(r"^\[(.*)]\s\[([^/]*)/(.*)][^:]*:\s(.*)$").unwrap();
             let config = Config::get();
-            let path = if let Some(path) = &config.minecraft_log_path {
-                path.clone()
-            } else {
-                return;
-            };
-            let channel_id: u64 = if let Some(channel_id) = &config.minecraft_log_channel_id {
-                channel_id.parse::<_>().unwrap()
-            } else {
-                return;
-            };
-            debug!("channel id: {channel_id}");
-            let mut lines = MuxedLines::new().unwrap();
-            lines.add_file(path).await.unwrap();
-            tokio::spawn(async move {
-                while let Ok(Some(line)) = lines.next_line().await {
-                    debug!("{:?}", line);
-                    if let Some(line) = log_re.captures(&line.line()).map(|cap| {
-                        let time = cap
-                            .get(1)
-                            .map(|time| time.as_str().to_string())
-                            .unwrap_or("".to_string());
-                        let caused_at = cap
-                            .get(2)
-                            .map(|ca| ca.as_str().to_string())
-                            .unwrap_or("".to_string());
-                        let level = cap
-                            .get(3)
-                            .map(|l| l.as_str().to_string())
-                            .unwrap_or("".to_string());
-                        let message = cap
-                            .get(4)
-                            .map(|m| m.as_str().to_string())
-                            .unwrap_or("".to_string());
 
-                        MinecraftLine::new(time, caused_at, level, message)
-                    }) {
-                        let data_read = ctx1.data.read().await;
-                        let send_rules_lock = data_read.get::<SendRules>().unwrap().clone();
-                        for rule in send_rules_lock.iter() {
-                            if let Some(msg) = rule.send(&line) {
-                                match ChannelId(channel_id).say(&ctx1, msg).await {
-                                    Ok(_) => {}
-                                    Err(err) => {
-                                        error!("{err}");
-                                    }
-                                }
-                            }
+            let ctx1 = Arc::clone(&ctx);
+            tokio::spawn(async move {
+                let path = if let Some(path) = &config.minecraft_log_path {
+                    path.clone()
+                } else {
+                    return;
+                };
+                let channel_id: u64 = if let Some(channel_id) = &config.minecraft_log_channel_id {
+                    channel_id.parse::<_>().unwrap()
+                } else {
+                    return;
+                };
+                match tail_log(Arc::clone(&ctx1), path, channel_id).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        log::error!("{err}");
+                    }
+                }
+            });
+
+            let ctx2 = Arc::clone(&ctx);
+            tokio::spawn(async move {
+                loop {
+                    match set_status(Arc::clone(&ctx2)).await {
+                        Ok(_) => {}
+                        Err(err) => {
+                            log::error!("{err}");
                         }
                     };
+                    tokio::time::sleep(Duration::from_secs(60)).await;
                 }
             });
 
@@ -141,6 +125,60 @@ async fn whitelist_add(ctx: Context, add_reaction: Reaction) -> CommandResult {
             }
         }
     };
+    Ok(())
+}
+
+async fn tail_log(ctx: Arc<Context>, path: String, channel_id: u64) -> CommandResult {
+    let log_re = Regex::new(r"^\[(.*)]\s\[([^/]*)/(.*)][^:]*:\s(.*)$").unwrap();
+    let mut lines = MuxedLines::new().unwrap();
+    lines.add_file(path).await.unwrap();
+    while let Ok(Some(line)) = lines.next_line().await {
+        debug!("{:?}", line);
+        if let Some(line) = log_re.captures(&line.line()).map(|cap| {
+            let time = cap
+                .get(1)
+                .map(|time| time.as_str().to_string())
+                .unwrap_or("".to_string());
+            let caused_at = cap
+                .get(2)
+                .map(|ca| ca.as_str().to_string())
+                .unwrap_or("".to_string());
+            let level = cap
+                .get(3)
+                .map(|l| l.as_str().to_string())
+                .unwrap_or("".to_string());
+            let message = cap
+                .get(4)
+                .map(|m| m.as_str().to_string())
+                .unwrap_or("".to_string());
+
+            MinecraftLine::new(time, caused_at, level, message)
+        }) {
+            let data_read = ctx.data.read().await;
+            let send_rules_lock = data_read.get::<SendRules>().unwrap().clone();
+            for rule in send_rules_lock.iter() {
+                if let Some(msg) = rule.send(&line) {
+                    match ChannelId(channel_id).say(&ctx, msg).await {
+                        Ok(_) => {}
+                        Err(err) => {
+                            error!("{err}");
+                        }
+                    }
+                }
+            }
+        };
+    }
+    Ok(())
+}
+
+async fn set_status(ctx: Arc<Context>) -> CommandResult {
+    let ping = PingClient::new().await;
+    let status = ping.ping().await?;
+    ctx.set_activity(Activity::playing(format!(
+        "{} people(s) online",
+        status.players.online
+    )))
+    .await;
     Ok(())
 }
 

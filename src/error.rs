@@ -7,4 +7,6 @@ pub enum Error {
     Url(#[source] url::ParseError),
     #[error(display = "reqwest related error: {}", _0)]
     Reqwest(#[source] reqwest::Error),
+    #[error(display = "ping server related error: {}", _0)]
+    PingServer(#[source] async_minecraft_ping::ServerError),
 }
