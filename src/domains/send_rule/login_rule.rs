@@ -7,15 +7,11 @@ use super::SendRule;
 pub struct LoginRule;
 
 impl SendRule for LoginRule {
-    fn allow_send(&self, line: &MinecraftLine) -> bool {
-        if !line.caused_at.contains("Server thread") || !line.level.eq("INFO") {
-            return false;
-        }
-        let join_re = Regex::new(r"^(.*)\s(joined|left)\sthe\sgame$").unwrap();
-        join_re.captures(&line.message).is_some()
-    }
-
     fn send(&self, line: &MinecraftLine) -> Option<String> {
+        if !line.caused_at.contains("Server thread") || !line.level.eq("INFO") {
+            return None;
+        }
+
         let join_re = Regex::new(r"^(.*)\s(joined|left)\sthe\sgame$").unwrap();
         join_re.captures(&line.message).map(|cap| {
             let name = cap

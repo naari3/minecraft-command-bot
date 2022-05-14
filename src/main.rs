@@ -19,7 +19,10 @@ mod minecraft_line;
 use commands::{cmd::*, help::*, mcuuid::*, say::*};
 
 use crate::{
-    domains::send_rule::{chat_rule::ChatRule, login_rule::LoginRule, rcon_rule::RconRule},
+    domains::send_rule::{
+        advancement_rule::AdvancementRule, chat_rule::ChatRule, login_rule::LoginRule,
+        rcon_rule::RconRule, server_rule::ServerRule,
+    },
     globals::SendRules,
     listeners::{after_commands, dispatch_error, Handler},
 };
@@ -63,6 +66,8 @@ async fn main() {
             Box::new(ChatRule),
             Box::new(RconRule),
             Box::new(LoginRule),
+            Box::new(AdvancementRule),
+            Box::new(ServerRule),
         ]));
     }
     if let Err(reason) = client.start().await {

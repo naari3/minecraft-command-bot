@@ -95,13 +95,11 @@ impl EventHandler for Handler {
                         let data_read = ctx1.data.read().await;
                         let send_rules_lock = data_read.get::<SendRules>().unwrap().clone();
                         for rule in send_rules_lock.iter() {
-                            if rule.allow_send(&line) {
-                                if let Some(msg) = rule.send(&line) {
-                                    match ChannelId(channel_id).say(&ctx1, msg).await {
-                                        Ok(_) => {}
-                                        Err(err) => {
-                                            error!("{err}");
-                                        }
+                            if let Some(msg) = rule.send(&line) {
+                                match ChannelId(channel_id).say(&ctx1, msg).await {
+                                    Ok(_) => {}
+                                    Err(err) => {
+                                        error!("{err}");
                                     }
                                 }
                             }

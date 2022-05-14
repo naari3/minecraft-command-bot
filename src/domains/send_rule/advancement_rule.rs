@@ -4,25 +4,27 @@ use regex::Regex;
 use super::SendRule;
 
 #[derive(Clone)]
-pub struct ChatRule;
+pub struct AdvancementRule;
 
-impl SendRule for ChatRule {
+impl SendRule for AdvancementRule {
     fn send(&self, line: &MinecraftLine) -> Option<String> {
         if !line.caused_at.contains("Server thread") || !line.level.eq("INFO") {
             return None;
         }
 
-        let chat_re = Regex::new(r"^<(.*?)>\s(.*)$").unwrap();
-        chat_re.captures(&line.message).map(|cap| {
+        let advancement_re =
+            Regex::new(r"^(.*)\s\shas\smade\sthe\sadvancement\s\[(.*)\]$").unwrap();
+
+        advancement_re.captures(&line.message).map(|cap| {
             let name = cap
                 .get(1)
                 .map(|name| name.as_str().to_string())
                 .unwrap_or("".to_string());
-            let message = cap
+            let kind = cap
                 .get(2)
                 .map(|m| m.as_str().to_string())
                 .unwrap_or("".to_string());
-            format!("**{name}**: {message}").to_string()
+            format!("**{name}** has made the advancement _**{kind}**_").to_string()
         })
     }
 }
