@@ -4,7 +4,7 @@ use regex::Regex;
 
 use super::SendRule;
 
-static CHAT_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\<(.*?)>\s(.*)$").unwrap());
+static CHAT_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^<(.*?)>\s(.*)$").unwrap());
 
 #[derive(Clone)]
 pub struct ChatRule;
