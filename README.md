@@ -1,6 +1,6 @@
 # minecraft-command-bot
 
-A discord bot about for Minecraft server.
+A discord bot for Minecraft server.
 
 # requirement
 
@@ -59,9 +59,9 @@ volumes:
 
 - Convert Minecraft name and UUID to each other.
 - Example:
-  - `\mcuuid naarisan` will returns => `05140bb4-f432-43fe-a5e4-069da2d4fc46`
-  - `\mcuuid 05140bb4-f432-43fe-a5e4-069da2d4fc46` will returns => `naarisan`
-  - `\mcuuid 05140bb4f43243fea5e4069da2d4fc46` will also returns => `naarisan`
+  - `\mcuuid naarisan` will return => `05140bb4-f432-43fe-a5e4-069da2d4fc46`
+  - `\mcuuid 05140bb4-f432-43fe-a5e4-069da2d4fc46` will return => `naarisan`
+  - `\mcuuid 05140bb4f43243fea5e4069da2d4fc46` will also return => `naarisan`
 
 ### say
 
