@@ -22,12 +22,16 @@ RUN case "$TARGETPLATFORM" in \
   *) exit 1 ;; \
 esac
 RUN rustup target add $(cat /rust_target.txt)
-RUN cargo build --release --target $(cat /rust_target.txt)
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/app/target \
+    cargo build --release --target $(cat /rust_target.txt)
 RUN rm src/*.rs
 
 COPY ./src ./src
 RUN touch ./src/main.rs
-RUN cargo install --locked --path . --target $(cat /rust_target.txt)
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/app/target \
+    cargo install --locked --path . --target $(cat /rust_target.txt)
 
 FROM alpine
 COPY --from=builder /usr/local/cargo/bin/minecraft-command-bot .
