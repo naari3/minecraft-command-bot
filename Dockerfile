@@ -1,17 +1,9 @@
-FROM --platform=$BUILDPLATFORM rust:1.60 as builder
+FROM --platform=$BUILDPLATFORM rust:1.63 as builder
 
-RUN apt update -y && apt install llvm clang -y
+RUN apt update -y && apt install python3-pip -y && pip3 install cargo-zigbuild
 
 RUN cargo new --bin app
 WORKDIR /app
-
-ENV CC_aarch64_unknown_linux_musl=clang
-ENV AR_aarch64_unknown_linux_musl=llvm-ar
-ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-Clink-self-contained=yes -Clinker=rust-lld"
-
-ENV CC_x86_64_unknown_linux_musl=clang
-ENV AR_x86_64_unknown_linux_musl=llvm-ar
-ENV CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-Clink-self-contained=yes -Clinker=rust-lld"
 
 COPY ./Cargo.lock ./Cargo.lock
 COPY ./Cargo.toml ./Cargo.toml
@@ -24,15 +16,16 @@ esac
 RUN rustup target add $(cat /rust_target.txt)
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/app/target \
-    cargo build --release --target $(cat /rust_target.txt)
+    cargo zigbuild --release --target $(cat /rust_target.txt)
 RUN rm src/*.rs
 
 COPY ./src ./src
 RUN touch ./src/main.rs
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/app/target \
-    cargo install --locked --path . --target $(cat /rust_target.txt)
+    cargo zigbuild --release --target $(cat /rust_target.txt) && \
+    cp target/$(cat /rust_target.txt)/release/minecraft-command-bot /usr/local/bin/minecraft-command-bot
 
 FROM alpine
-COPY --from=builder /usr/local/cargo/bin/minecraft-command-bot .
+COPY --from=builder /usr/local/bin/minecraft-command-bot .
 CMD ["./minecraft-command-bot"]
