@@ -149,7 +149,7 @@ async fn tail_log(ctx: Arc<Context>, path: String, channel_id: u64) -> CommandRe
                 .unwrap_or("".to_string());
             let message = cap
                 .get(4)
-                .map(|m| m.as_str().to_string().replace("§r", ""))
+                .map(|m| m.as_str().to_string().replace("§r", "").replace("§e", ""))
                 .unwrap_or("".to_string());
 
             MinecraftLine::new(time, caused_at, level, message)
