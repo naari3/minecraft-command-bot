@@ -8,7 +8,7 @@ static SERVER_REGEXS: Lazy<Vec<Regex>> = Lazy::new(|| {
     let res = vec![
         r"^Starting\sminecraft\sserver\sversion\s.*$",
         r"^Stopping\sserver$",
-        r#"^Done\s\(.*s\)!\sFor\shelp,\stype\s"help"\sor\s"\?"$"#,
+        r"^Done\s\(.*s\)!",
     ];
     res.into_iter().map(|re| Regex::new(re).unwrap()).collect()
 });
