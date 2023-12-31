@@ -3,19 +3,22 @@ version: "3.8"
 services:
   mc:
     ports:
-      - "25565:25565"
+      - "25566:25565"
       - "25575:25575"
     volumes:
       - "mcbig:/data"
     environment:
       EULA: "TRUE"
-      MAX_MEMORY: 32G
-      MAX_BUILD_HEIGHT: 256
-      VIEW_DISTANCE: 15
-      LEVEL_TYPE: LARGEBIOMES
-      MAX_PLAYERS: 100
+      # TYPE: FORGE
+      # FORGEVERSION: "47.2.0"
+      VERSION: "1.20.1"
+      MEMORY: "8G"
+      RCON_PASSWORD: minecraft
     image: itzg/minecraft-server
     restart: always
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
   rcon:
     image: itzg/rcon
     ports:
