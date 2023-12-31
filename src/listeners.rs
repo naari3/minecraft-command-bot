@@ -129,7 +129,10 @@ async fn whitelist_add(ctx: Context, add_reaction: Reaction) -> CommandResult {
 }
 
 async fn tail_log(ctx: Arc<Context>, path: String, channel_id: u64) -> CommandResult {
-    let log_re = Regex::new(r"^\[(.*)]\s\[([^/]*)/(.*)][^:]*:\s(.*)$").unwrap();
+    // support minecraft log format (original, forge)
+    // eg. [12:34:56] [Server thread/INFO]: <player> message
+    // eg. [12:34:56] [Server thread/INFO] [minecraft/Server]: <player> message
+    let log_re = Regex::new(r"^\[(\d{2}:\d{2}:\d{2})] \[([^/\]]+)/([^/\]]+)](?: \[(.+)])?: (.*)$").unwrap();
     let mut lines = MuxedLines::new().unwrap();
     lines.add_file(path).await.unwrap();
     while let Ok(Some(line)) = lines.next_line().await {
