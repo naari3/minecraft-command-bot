@@ -6,11 +6,11 @@ services:
       - "25566:25565"
       - "25575:25575"
     volumes:
-      - "mcbig:/data"
+      - "./data:/data"
     environment:
       EULA: "TRUE"
-      # TYPE: FORGE
-      # FORGEVERSION: "47.2.0"
+      TYPE: FORGE
+      FORGEVERSION: "47.2.0"
       VERSION: "1.20.1"
       MEMORY: "8G"
       RCON_PASSWORD: minecraft
@@ -39,15 +39,16 @@ services:
     build:
       context: .
     environment:
+      SERVER_ADDRESS: mc
       RCON_HOST: mc
       RCON_PASSWORD: minecraft
       DISCORD_BOT_TOKEN: your_token
       DISCORD_BOT_PREFIX: \
       MINECRAFT_LOG_PATH: /data/logs/latest.log
       MINECRAFT_LOG_CHANNEL_ID: "974809758655721542"
+      LOG_LEVEL: INFO # DEBUG, INFO, WARNING, ERROR
     volumes:
-      - "mcbig:/data"
+      - "./data:/data"
 
 volumes:
-  mcbig:
   rcon:

@@ -10,7 +10,7 @@ impl PingClient {
     pub async fn new() -> Self {
         let config = Config::get();
         Self {
-            connection: ConnectionConfig::build(config.rcon_host),
+            connection: ConnectionConfig::build(config.server_address),
         }
     }
 

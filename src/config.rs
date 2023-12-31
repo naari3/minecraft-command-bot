@@ -2,6 +2,7 @@ use serde::Deserialize;
 
 #[derive(Deserialize, Debug, Default)]
 pub struct Config {
+    pub server_address: String,
     pub rcon_host: String,
     pub rcon_password: String,
     pub discord_bot_token: String,

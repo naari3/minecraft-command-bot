@@ -37,8 +37,9 @@ struct General;
 #[tokio::main]
 async fn main() {
     dotenv().ok();
+    let log_level = std::env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string());
     env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or("minecraft_command_bot=info"),
+        env_logger::Env::default().default_filter_or(format!("minecraft_command_bot={}", log_level)),
     )
     .init();
 

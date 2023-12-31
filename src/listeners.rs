@@ -64,11 +64,13 @@ impl EventHandler for Handler {
                 let path = if let Some(path) = &config.minecraft_log_path {
                     path.clone()
                 } else {
+                    info!("minecraft_log_path is not set");
                     return;
                 };
                 let channel_id: u64 = if let Some(channel_id) = &config.minecraft_log_channel_id {
                     channel_id.parse::<_>().unwrap()
                 } else {
+                    info!("minecraft_log_channel_id is not set");
                     return;
                 };
                 match tail_log(Arc::clone(&ctx1), path, channel_id).await {
@@ -132,35 +134,27 @@ async fn tail_log(ctx: Arc<Context>, path: String, channel_id: u64) -> CommandRe
     // support minecraft log format (original, forge)
     // eg. [12:34:56] [Server thread/INFO]: <player> message
     // eg. [12:34:56] [Server thread/INFO] [minecraft/Server]: <player> message
-    let log_re = Regex::new(r"^\[(\d{2}:\d{2}:\d{2})] \[([^/\]]+)/([^/\]]+)](?: \[(.+)])?: (.*)$").unwrap();
+    // eg. [31Dec2023 03:57:20.886] [Server thread/INFO] [minecraft/Server]: <player> message
+    let log_re = Regex::new(r"\[(?P<time>[^\]]+)] \[(?P<caused_at>[^/]+)/(?P<level>[^\]]+)](?: \[[^\]]+])?: (?P<message>.*)").unwrap();
+
     let mut lines = MuxedLines::new().unwrap();
     lines.add_file(path).await.unwrap();
     while let Ok(Some(line)) = lines.next_line().await {
-        debug!("{:?}", line);
-        if let Some(line) = log_re.captures(&line.line()).map(|cap| {
-            let time = cap
-                .get(1)
-                .map(|time| time.as_str().to_string())
-                .unwrap_or("".to_string());
-            let caused_at = cap
-                .get(2)
-                .map(|ca| ca.as_str().to_string())
-                .unwrap_or("".to_string());
-            let level = cap
-                .get(3)
-                .map(|l| l.as_str().to_string())
-                .unwrap_or("".to_string());
-            let message = cap
-                .get(4)
-                .map(|m| m.as_str().to_string().replace("§r", "").replace("§e", ""))
-                .unwrap_or("".to_string());
+        debug!("new line: {:?}", line);
+        if let Some(line) = log_re.captures(&line.line()).map(|caps| {
+            let time = caps.name("time").map_or("", |m| m.as_str());
+            let caused_at = caps.name("caused_at").map_or("", |m| m.as_str());
+            let level = caps.name("level").map_or("", |m| m.as_str());
+            let message = caps.name("message").map_or("", |m| m.as_str());
 
-            MinecraftLine::new(time, caused_at, level, message)
+            MinecraftLine::new(time.into(), caused_at.into(), level.into(), message.into())
         }) {
+            debug!("captured: {:?}", line);
             let data_read = ctx.data.read().await;
             let send_rules_lock = data_read.get::<SendRules>().unwrap().clone();
             for rule in send_rules_lock.iter() {
                 if let Some(msg) = rule.send(&line) {
+                    debug!("matched. trying to send message \"{:?}\"", msg);
                     match ChannelId(channel_id).say(&ctx, msg).await {
                         Ok(_) => {}
                         Err(err) => {
