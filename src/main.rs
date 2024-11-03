@@ -4,6 +4,7 @@ use config::Config;
 use dotenv::dotenv;
 use log::info;
 use serenity::{
+    all::{standard::Configuration, GatewayIntents},
     framework::{standard::macros::group, StandardFramework},
     Client,
 };
@@ -37,9 +38,10 @@ struct General;
 #[tokio::main]
 async fn main() {
     dotenv().ok();
-    let log_level = std::env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string());
+    let log_level = std::env::var("LOG_LEVEL").unwrap_or_else(|_| "debug".to_string());
     env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or(format!("minecraft_command_bot={}", log_level)),
+        env_logger::Env::default()
+            .default_filter_or(format!("minecraft_command_bot={}", log_level)),
     )
     .init();
 
@@ -48,14 +50,18 @@ async fn main() {
     info!("Start command bot");
 
     let framework = StandardFramework::new()
-        .configure(|cfg| cfg.prefix(&config.discord_bot_prefix))
         // .before(before_commands)
         .after(after_commands)
         .on_dispatch_error(dispatch_error)
         .group(&GENERAL_GROUP)
         .help(&MY_HELP);
+    framework.configure(
+        Configuration::new()
+            .with_whitespace(true)
+            .prefix(&config.discord_bot_prefix),
+    );
 
-    let mut client = Client::builder(&config.discord_bot_token)
+    let mut client = Client::builder(&config.discord_bot_token, GatewayIntents::default())
         .framework(framework)
         .event_handler(Handler::new())
         .await

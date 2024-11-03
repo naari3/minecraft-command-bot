@@ -10,14 +10,11 @@ use linemux::MuxedLines;
 use log::{debug, error, info};
 use regex::Regex;
 use serenity::{
-    async_trait,
-    client::{Context, EventHandler},
-    framework::standard::{macros::hook, CommandResult, DispatchError},
-    model::{
+    all::ActivityData, async_trait, client::{Context, EventHandler}, framework::standard::{macros::hook, CommandResult, DispatchError}, model::{
         channel::{Message, Reaction},
         id::{ChannelId, GuildId},
-        prelude::{Activity, Ready},
-    },
+        prelude::Ready,
+    }
 };
 
 use crate::{
@@ -103,26 +100,30 @@ async fn whitelist_add(ctx: Context, add_reaction: Reaction) -> CommandResult {
     if !add_reaction.emoji.unicode_eq("❤\u{fe0f}") {
         return Ok(());
     }
+
     if let Some(user_id) = add_reaction.user_id {
+        debug!("reaction added by user_id: {}", user_id);
         if let Some(guild_id) = add_reaction.guild_id {
-            let roles = ctx
-                .cache
-                .guild_field(guild_id, |guild| guild.roles.clone())
-                .await
-                .unwrap();
+            let roles = guild_id.roles(&ctx.http).await?;
+            debug!("roles: {:?}", roles);
             if let Some(cmd_role) = roles.values().find(|role| role.name == "cmd") {
                 let have_cmd = user_id
                     .to_user(&ctx.http)
                     .await?
                     .has_role(&ctx.http, guild_id, cmd_role)
                     .await?;
+                debug!("have_cmd: {}", have_cmd);
                 if have_cmd {
                     let mut client = RCONClient::new().await?;
+                    debug!("client");
                     let message = add_reaction.message(&ctx.http).await?;
+                    debug!("message");
                     let result = client
                         .cmd(&format!("whitelist add {}", message.content))
                         .await?;
+                    debug!("result");
                     message.reply_ping(&ctx.http, format!("`{result}`")).await?;
+                    debug!("whitelist add result: {}", result);
                 }
             }
         }
@@ -155,7 +156,7 @@ async fn tail_log(ctx: Arc<Context>, path: String, channel_id: u64) -> CommandRe
             for rule in send_rules_lock.iter() {
                 if let Some(msg) = rule.send(&line) {
                     debug!("matched. trying to send message \"{:?}\"", msg);
-                    match ChannelId(channel_id).say(&ctx, msg).await {
+                    match ChannelId::new(channel_id).say(&ctx, msg).await {
                         Ok(_) => {}
                         Err(err) => {
                             error!("{err}");
@@ -171,16 +172,15 @@ async fn tail_log(ctx: Arc<Context>, path: String, channel_id: u64) -> CommandRe
 async fn set_status(ctx: Arc<Context>) -> CommandResult {
     let ping = PingClient::new().await;
     let status = ping.ping().await?;
-    ctx.set_activity(Activity::playing(format!(
+    ctx.set_activity(Some(ActivityData::playing(format!(
         "{} player(s) online",
         status.players.online
-    )))
-    .await;
+    ))));
     Ok(())
 }
 
 #[hook]
-pub async fn dispatch_error(ctx: &Context, msg: &Message, error: DispatchError) {
+pub async fn dispatch_error(ctx: &Context, msg: &Message, error: DispatchError, command_name: &str) {
     log::error!("{:?}", error);
     match error {
         // DispatchError::CheckFailed(_, _) => todo!(),
@@ -191,7 +191,7 @@ pub async fn dispatch_error(ctx: &Context, msg: &Message, error: DispatchError) 
                     .channel_id
                     .say(
                         &ctx.http,
-                        &format!("Try this again in {} seconds.", info.as_secs()),
+                        &format!("command: {}, Try this again in {} seconds.", command_name, info.as_secs()),
                     )
                     .await;
             }
@@ -224,7 +224,7 @@ pub async fn after_commands(
     command_result: CommandResult,
 ) {
     if let Err(err) = command_result {
-        let _ = message.reply(&ctx.http, &err).await;
+        let _ = message.reply(&ctx.http, &err.to_string()).await;
         if format!("{}", err).contains("不明なエラー") {
             println!(
                 "[{}] {}の処理中にエラーが発生しました。\nerror: {}\nmessage: {}\nauthor: {} (id: {})\nguild_id: {:?}",
@@ -233,7 +233,7 @@ pub async fn after_commands(
                 err,
                 message.content,
                 message.author.name,
-                message.author.id.as_u64(),
+                message.author.id,
                 message.guild_id
             );
         }

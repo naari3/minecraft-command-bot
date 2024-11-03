@@ -1,6 +1,7 @@
-FROM --platform=$BUILDPLATFORM rust:1.63 as builder
+FROM --platform=$BUILDPLATFORM rust:1.82 as builder
 
-RUN apt update -y && apt install python3-pip -y && pip3 install cargo-zigbuild
+RUN cargo install --locked cargo-zigbuild
+RUN apt update -y && apt install python3-pip -y && pip3 install --break-system-package cargo-zigbuild
 
 RUN cargo new --bin app
 WORKDIR /app
