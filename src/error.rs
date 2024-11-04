@@ -9,4 +9,6 @@ pub enum Error {
     Reqwest(#[source] reqwest::Error),
     #[error(display = "ping server related error: {}", _0)]
     PingServer(#[source] async_minecraft_ping::ServerError),
+    #[error(display = "serenity related error: {}", _0)]
+    Serenity(#[source] serenity::Error),
 }

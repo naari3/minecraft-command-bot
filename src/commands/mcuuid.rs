@@ -1,18 +1,16 @@
 use log::info;
-use serenity::framework::standard::Args;
-use serenity::framework::standard::{macros::command, CommandResult};
-use serenity::model::prelude::Message;
-use serenity::prelude::Context;
 use uuid::Uuid;
 
 use crate::domains::mojang_client::MojangClient;
+use crate::error::Error;
+use crate::Context;
 
-#[command]
-#[description = "usernameとuuidを相互変換する"]
-#[usage = "[username | uuid]"]
-async fn mcuuid(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-    let name_or_uuid = args.single::<String>()?;
-    info!("Receive mcuuid: {} `{name_or_uuid}`", msg.author.tag());
+#[poise::command(slash_command, prefix_command)]
+pub async fn mcuuid(
+    ctx: Context<'_>,
+    #[description = "Specific name or uuid"] name_or_uuid: String,
+) -> Result<(), Error> {
+    info!("Receive mcuuid: {} `{name_or_uuid}`", ctx.author());
     let mut client = MojangClient::new();
     let result = match Uuid::parse_str(&name_or_uuid) {
         Ok(uuid) => client.uuid_to_name(&uuid).await?,
@@ -29,9 +27,9 @@ async fn mcuuid(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
         None => "not found".to_string(),
     };
 
-    msg.reply_ping(&ctx.http, message).await?;
+    ctx.reply(message).await?;
 
-    info!("Success mcuuid: {} `{name_or_uuid}`", msg.author.tag());
+    info!("Success mcuuid: {} `{name_or_uuid}`", ctx.author());
 
     Ok(())
 }

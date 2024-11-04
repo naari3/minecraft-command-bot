@@ -10,7 +10,8 @@ rcon = { version = "0.6.0", features = ["rt-tokio"] }
 
 # burst_colours の修正が取り込まれるまでの暫定対応
 # https://github.com/serenity-rs/serenity/commit/e34f4491ee3a0b20ea8dc30cbc77b257f402f692
-serenity = {git = "https://github.com/serenity-rs/serenity", rev = "59c24502f8b2c8381ffdefab7b5f105cf67c9c63", features = ["framework", "standard_framework"]}
+serenity = { git = "https://github.com/serenity-rs/serenity", rev = "59c24502f8b2c8381ffdefab7b5f105cf67c9c63", features = ["framework", "standard_framework"] }
+poise = { git = "https://github.com/naari3/poise", rev = "5dd484e8957ca4e655d06bccf3501e24f67407aa" }
 
 tokio = {version = "1.18", features = ["macros", "rt-multi-thread"]}
 tokio-stream = "0.1"

@@ -9,8 +9,12 @@ pub struct PingClient {
 impl PingClient {
     pub async fn new() -> Self {
         let config = Config::get();
+        let mut connection = ConnectionConfig::build(config.server_address);
+        if let Some(port) = config.server_port {
+            connection = connection.with_port(port);
+        }
         Self {
-            connection: ConnectionConfig::build(config.server_address),
+            connection,
         }
     }
 

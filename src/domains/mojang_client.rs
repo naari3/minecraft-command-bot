@@ -108,7 +108,7 @@ impl MojangClient {
 
     pub async fn uuid_to_name(&mut self, uuid: &Uuid) -> Result<Option<String>, Error> {
         if let Some(hists) = self.uuid_to_name_history(uuid).await? {
-            if let Some(hist) = hists.iter().next() {
+            if let Some(hist) = hists.first() {
                 return Ok(Some(hist.name.to_string()));
             }
         }

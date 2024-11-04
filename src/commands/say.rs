@@ -1,34 +1,46 @@
 use log::{error, info};
-use serenity::framework::standard::Args;
-use serenity::framework::standard::{macros::command, CommandResult};
-use serenity::model::prelude::Message;
-use serenity::prelude::Context;
+use poise::CreateReply;
 
 use crate::domains::rcon_client::RCONClient;
+use crate::error::Error;
+use crate::Context;
 
-#[command]
-#[description = "コマンドを送信する"]
-#[usage = "[say ...]"]
-async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let arg_msg = args.rest();
-    info!("Receive say: {} `{arg_msg}`", msg.author.tag());
+#[poise::command(slash_command, prefix_command)]
+pub async fn say(
+    ctx: Context<'_>,
+    #[description = "Specific message to send to server"] message: String,
+) -> Result<(), Error> {
+    info!("Receive say: {} `{message}`", ctx.author());
     let mut client = match RCONClient::new().await {
         Ok(c) => c,
         Err(err) => {
             error!("Cannot get connect `{err}`");
-            msg.reply_ping(&ctx.http, format!("{err}")).await?;
+            ctx.reply(format!("{err}")).await?;
             return Err(err)?;
         }
     };
-    let name = msg
-        .author
-        .nick_in(&ctx.http, msg.guild_id.unwrap())
+    let name = ctx
+        .author()
+        .nick_in(ctx.http(), ctx.guild_id().unwrap_or_default())
         .await
-        .unwrap_or_else(|| msg.author.name.clone());
-    let cmd = format!("say <{name}> {arg_msg}");
+        .unwrap_or_else(|| {
+            ctx.author()
+                .global_name
+                .clone()
+                .unwrap_or(ctx.author().name.clone())
+        });
+    let cmd = format!("say <{name}> {message}");
     let _ = client.cmd(&cmd).await?;
 
-    info!("Receive say: {} `{arg_msg}`", msg.author.tag());
+    let reply = ctx
+        .send(CreateReply {
+            content: Some("📨".to_string()),
+            ephemeral: Some(true),
+            ..Default::default()
+        })
+        .await?;
+    reply.delete(ctx).await?;
+    info!("Receive say: {} `{message}`", ctx.author());
 
     Ok(())
 }

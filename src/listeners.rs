@@ -1,8 +1,5 @@
 use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
+    sync::{atomic::Ordering, Arc},
     time::Duration,
 };
 
@@ -10,93 +7,88 @@ use linemux::MuxedLines;
 use log::{debug, error, info};
 use regex::Regex;
 use serenity::{
-    all::ActivityData, async_trait, client::{Context, EventHandler}, framework::standard::{macros::hook, CommandResult, DispatchError}, model::{
-        channel::{Message, Reaction},
-        id::{ChannelId, GuildId},
-        prelude::Ready,
-    }
+    all::{ActivityData, FullEvent},
+    client::Context,
+    model::{channel::Reaction, id::ChannelId},
 };
 
 use crate::{
     config::Config,
-    domains::{ping_client::PingClient, rcon_client::RCONClient},
-    globals::SendRules,
+    domains::{ping_client::PingClient, rcon_client::RCONClient, send_rule::SendRule},
+    error::Error,
     minecraft_line::MinecraftLine,
+    Data,
 };
 
-pub struct Handler {
-    is_loop_running: AtomicBool,
-}
+pub async fn event_handler(
+    ctx: &Context,
+    event: &FullEvent,
+    _framework: poise::FrameworkContext<'_, Data, Error>,
+    data: &Data,
+) -> Result<(), Error> {
+    match event {
+        FullEvent::Ready { data_about_bot, .. } => {
+            info!("{} is connected!", data_about_bot.user.name);
+            let ctx = ctx.clone();
+            if !data.is_loop_running.load(Ordering::Relaxed) {
+                let config = Config::get();
 
-impl Handler {
-    pub fn new() -> Self {
-        Self {
-            is_loop_running: AtomicBool::new(false),
-        }
-    }
-}
-
-#[async_trait]
-impl EventHandler for Handler {
-    async fn ready(&self, _: Context, ready: Ready) {
-        info!("{} is connected!", ready.user.name);
-    }
-
-    async fn reaction_add(&self, ctx: Context, add_reaction: Reaction) {
-        match whitelist_add(ctx, add_reaction).await {
-            Ok(_) => {}
-            Err(err) => {
-                log::error!("{err}");
-            }
-        }
-    }
-
-    async fn cache_ready(&self, ctx: Context, _guilds: Vec<GuildId>) {
-        let ctx = Arc::new(ctx);
-        if !self.is_loop_running.load(Ordering::Relaxed) {
-            let config = Config::get();
-
-            let ctx1 = Arc::clone(&ctx);
-            tokio::spawn(async move {
-                let path = if let Some(path) = &config.minecraft_log_path {
-                    path.clone()
-                } else {
-                    info!("minecraft_log_path is not set");
-                    return;
-                };
-                let channel_id: u64 = if let Some(channel_id) = &config.minecraft_log_channel_id {
-                    channel_id.parse::<_>().unwrap()
-                } else {
-                    info!("minecraft_log_channel_id is not set");
-                    return;
-                };
-                match tail_log(Arc::clone(&ctx1), path, channel_id).await {
-                    Ok(_) => {}
-                    Err(err) => {
-                        log::error!("{err}");
-                    }
-                }
-            });
-
-            let ctx2 = Arc::clone(&ctx);
-            tokio::spawn(async move {
-                loop {
-                    match set_status(Arc::clone(&ctx2)).await {
+                let ctx1 = ctx.clone();
+                let send_rules = data.send_rules.clone();
+                tokio::spawn(async move {
+                    info!("Start tailing log");
+                    let path = if let Some(path) = &config.minecraft_log_path {
+                        path.clone()
+                    } else {
+                        info!("minecraft_log_path is not set");
+                        return;
+                    };
+                    let channel_id: u64 = if let Some(channel_id) = &config.minecraft_log_channel_id
+                    {
+                        channel_id.parse::<_>().unwrap()
+                    } else {
+                        info!("minecraft_log_channel_id is not set");
+                        return;
+                    };
+                    match tail_log(&ctx1, path, channel_id, send_rules).await {
                         Ok(_) => {}
                         Err(err) => {
                             log::error!("{err}");
                         }
-                    };
-                    tokio::time::sleep(Duration::from_secs(60)).await;
-                }
-            });
+                    }
+                });
 
-            self.is_loop_running.swap(true, Ordering::Relaxed);
+                let ctx2 = ctx.clone();
+                tokio::spawn(async move {
+                    loop {
+                        match set_status(&ctx2).await {
+                            Ok(_) => {}
+                            Err(err) => {
+                                log::error!("{err}");
+                            }
+                        };
+                        tokio::time::sleep(Duration::from_secs(60)).await;
+                    }
+                });
+
+                data.is_loop_running.swap(true, Ordering::Relaxed);
+            }
         }
+        FullEvent::ReactionAdd { add_reaction } => {
+            match whitelist_add(ctx.clone(), add_reaction.clone()).await {
+                Ok(_) => {}
+                Err(err) => {
+                    log::error!("{err}");
+                }
+            }
+        }
+        FullEvent::CacheReady { guilds: _ } => {}
+        _ => {}
     }
+    Ok(())
 }
 
-async fn whitelist_add(ctx: Context, add_reaction: Reaction) -> CommandResult {
+async fn whitelist_add(ctx: Context, add_reaction: Reaction) -> Result<(), Error> {
     if !add_reaction.emoji.unicode_eq("❤\u{fe0f}") {
         return Ok(());
     }
@@ -131,7 +123,12 @@ async fn whitelist_add(ctx: Context, add_reaction: Reaction) -> CommandResult {
     Ok(())
 }
 
-async fn tail_log(ctx: Arc<Context>, path: String, channel_id: u64) -> CommandResult {
+async fn tail_log(
+    ctx: &Context,
+    path: String,
+    channel_id: u64,
+    send_rules: Arc<Vec<Box<dyn SendRule + Send + Sync>>>,
+) -> Result<(), Error> {
     // support minecraft log format (original, forge)
     // eg. [12:34:56] [Server thread/INFO]: <player> message
     // eg. [12:34:56] [Server thread/INFO] [minecraft/Server]: <player> message
@@ -142,7 +139,7 @@ async fn tail_log(ctx: Arc<Context>, path: String, channel_id: u64) -> CommandRe
     lines.add_file(path).await.unwrap();
     while let Ok(Some(line)) = lines.next_line().await {
         debug!("new line: {:?}", line);
-        if let Some(line) = log_re.captures(&line.line()).map(|caps| {
+        if let Some(line) = log_re.captures(line.line()).map(|caps| {
             let time = caps.name("time").map_or("", |m| m.as_str());
             let caused_at = caps.name("caused_at").map_or("", |m| m.as_str());
             let level = caps.name("level").map_or("", |m| m.as_str());
@@ -151,9 +148,7 @@ async fn tail_log(ctx: Arc<Context>, path: String, channel_id: u64) -> CommandRe
             MinecraftLine::new(time.into(), caused_at.into(), level.into(), message.into())
         }) {
             debug!("captured: {:?}", line);
-            let data_read = ctx.data.read().await;
-            let send_rules_lock = data_read.get::<SendRules>().unwrap().clone();
-            for rule in send_rules_lock.iter() {
+            for rule in send_rules.iter() {
                 if let Some(msg) = rule.send(&line) {
                     debug!("matched. trying to send message \"{:?}\"", msg);
                     match ChannelId::new(channel_id).say(&ctx, msg).await {
@@ -169,7 +164,7 @@ async fn tail_log(ctx: Arc<Context>, path: String, channel_id: u64) -> CommandRe
     Ok(())
 }
 
-async fn set_status(ctx: Arc<Context>) -> CommandResult {
+async fn set_status(ctx: &Context) -> Result<(), Error> {
     let ping = PingClient::new().await;
     let status = ping.ping().await?;
     ctx.set_activity(Some(ActivityData::playing(format!(
@@ -177,65 +172,4 @@ async fn set_status(ctx: Arc<Context>) -> CommandResult {
         status.players.online
     ))));
     Ok(())
-}
-
-#[hook]
-pub async fn dispatch_error(ctx: &Context, msg: &Message, error: DispatchError, command_name: &str) {
-    log::error!("{:?}", error);
-    match error {
-        // DispatchError::CheckFailed(_, _) => todo!(),
-        DispatchError::Ratelimited(info) => {
-            // We notify them only once.
-            if info.is_first_try {
-                let _ = msg
-                    .channel_id
-                    .say(
-                        &ctx.http,
-                        &format!("command: {}, Try this again in {} seconds.", command_name, info.as_secs()),
-                    )
-                    .await;
-            }
-        }
-        // DispatchError::CommandDisabled(_) => todo!(),
-        // DispatchError::BlockedUser => todo!(),
-        // DispatchError::BlockedGuild => todo!(),
-        // DispatchError::BlockedChannel => todo!(),
-        // DispatchError::OnlyForDM => todo!(),
-        // DispatchError::OnlyForGuilds => todo!(),
-        // DispatchError::OnlyForOwners => todo!(),
-        DispatchError::LackingRole => {
-            let _ = msg
-                .channel_id
-                .say(&ctx.http, "You have not enough role")
-                .await;
-        }
-        // DispatchError::LackingPermissions(_) => todo!(),
-        // DispatchError::NotEnoughArguments { min, given } => todo!(),
-        // DispatchError::TooManyArguments { max, given } => todo!(),
-        _ => {}
-    };
-}
-
-#[hook]
-pub async fn after_commands(
-    ctx: &Context,
-    message: &Message,
-    command_name: &str,
-    command_result: CommandResult,
-) {
-    if let Err(err) = command_result {
-        let _ = message.reply(&ctx.http, &err.to_string()).await;
-        if format!("{}", err).contains("不明なエラー") {
-            println!(
-                "[{}] {}の処理中にエラーが発生しました。\nerror: {}\nmessage: {}\nauthor: {} (id: {})\nguild_id: {:?}",
-                message.timestamp,
-                command_name,
-                err,
-                message.content,
-                message.author.name,
-                message.author.id,
-                message.guild_id
-            );
-        }
-    }
 }
